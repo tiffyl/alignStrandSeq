@@ -21,9 +21,11 @@ rdata <- loadFromFiles(filelist)
 Library <- unname(unlist(lapply(rdata, function(x) strsplit(x$ID, "\\.")[[1]][1])))
 Background <- unname(unlist(lapply(rdata, function(x) x$lib.metrics[1])))
 Reads_per_Mb <- unname(unlist(lapply(rdata, function(x) x$lib.metrics[2])))
+Coverage <- unname(unlist(lapply(rdata, function(x) x$lib.metrics[3]/100)))
 Percent_WC <- unname(unlist(lapply(rdata, function(x) length(grep("wc", x$counts$states)) / length(x$counts$states))))
 
-stats <- data.frame(Library, Background, Reads_per_Mb, Percent_WC)
+
+stats <- data.frame(Library, Background, Reads_per_Mb, Coverage, Percent_WC)
 write.table(stats, paste0(sampleId, ".bprstats.txt"), quote=FALSE, row.names=FALSE, sep="\t")
 
 # Output states of each chromosome

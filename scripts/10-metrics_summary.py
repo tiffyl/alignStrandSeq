@@ -35,7 +35,7 @@ for metfile in metlist[1:]:
 
 metdf[['R', 'C']] = metdf['Library'].str.extract(r'(\d\d-c\d\d)')[0].str.replace('c', '').str.split('-', expand = True)
 metdf = metdf.sort_values('Library', key=lambda x: x.str.lower().map(lambda x: (x.startswith("un"), x))).reset_index(drop=True)
-metdf['Coverage'] = metdf['Processed_reads_aligned']*(1-metdf['Duplication_rate'])*metdf['Read_length'] / genomesize
+# metdf['Coverage'] = metdf['Processed_reads_aligned']*(1-metdf['Duplication_rate'])*metdf['Read_length'] / genomesize
 metdf['Sample'] = metdf['Library'].str.split('-r\d\d-c\d\d').str[0]
 metdf[libmetadata + columns_order].to_csv("metrics_details.tsv", header=True, index=False, sep="\t")
 
