@@ -138,7 +138,7 @@ process breakpointr {
 
     output:
         tuple val(sampleId), path("${sampleId}_BPR_output"), emit: bprDirs
-        path("${sampleId}*.bprstats.txt"), emit: bprstats
+        tuple val(sampleId), path("${sampleId}*.bprstats.txt"), emit: bprstats
         path("${sampleId}*.chrstates.txt"), emit: chrstates
         path("${sampleId}.wwchr1.list"), emit: wwchr1
         path("${sampleId}.breaksPlot.pdf")
@@ -480,7 +480,7 @@ process stats_breakpointr {
     
     script:
     """
-    printf "Library\tBackground\tReads_per_Mb\tPercent_WC\n" > metrics_bprstats.txt
+    printf "Library\tBackground\tReads_per_Mb\tCoverage\tPercent_WC\n" > metrics_bprstats.txt
     cat ${bprstatsList.join(" ")} | grep -v "^Library" >> metrics_bprstats.txt
 
     printf "Library\t" > libchromstates.txt

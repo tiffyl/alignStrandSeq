@@ -174,7 +174,7 @@ workflow {
     stats_insertsize(picard_collectinsertgc.out.insertmets.collect())
     stats_gcbias(picard_collectinsertgc.out.gcmets.collect())
 
-    stats_breakpointr(breakpointr.out.bprstats.collect(), breakpointr.out.chrstates.collect())
+    stats_breakpointr(breakpointr.out.bprstats.map{ id, file -> file }.flatten().collect(), breakpointr.out.chrstates.collect())
     stats_ashleys(ashleysqc.out.ashleysQscores.collect())
     stats_uniqreads(uniqreads.out.uniqReads.collect())
     stats_complexity(preseq_indiv.out.complexity.collect())
