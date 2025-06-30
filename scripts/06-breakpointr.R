@@ -13,7 +13,7 @@ bamdir <- args[3]
 outdir <- paste0(basename(bamdir), "_BPR_output")
 
 chr <- paste0("chr", c(seq(1,22), "X", "Y"))
-mask <- "/projects/lansdorp/nextflow_pipelines/alignStrandSeq/scripts/files/blacklist.highdepth.centromeres.bed"
+mask <- "/projects/lansdorp/nextflow_pipelines/alignStrandSeq/scripts/files/hard_mask_highdepth_centromeres.hg38.humans.bed"
 
 ## SCRIPT
 suppressMessages(suppressWarnings(library(breakpointR)))
