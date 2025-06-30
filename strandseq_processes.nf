@@ -606,7 +606,7 @@ process metrics_summary {
 
     script:
     """
-    python ${projectDir}/scripts/10-metrics_summary.py ${params.genomesize}
+    python ${projectDir}/scripts/10-metrics_summary.py ${params.genomesize} ${params.ashleysthreshold} ${params.bgthreshold} ${params.wcthreshold}
     python ${projectDir}/scripts/10a-metrics_plots.py
     """
 }

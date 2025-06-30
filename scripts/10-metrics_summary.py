@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ## PURPOSE: Group individual metrics_* files into a spreadsheet, and plot heatmaps
-## USAGE:   python 10-metrics_summary.py
+## USAGE:   python 10-metrics_summary.py <genomesize> <ashleysthreshold> <bgthreshold> <wcthreshold> 
 ## OUTPUT:  metrics.xlsx metrics_details.tsv 
 
 ## LIBRARIES
@@ -19,6 +19,9 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 ## VARIABLES
 genomesize = float(sys.argv[1])
+ashleysthreshold = float(sys.argv[2])
+bgthreshold = float(sys.argv[3])
+wcthreshold = float(sys.argv[4])
 
 ## SCRIPT
 # Merge all metric files
@@ -40,7 +43,7 @@ metdf['Sample'] = metdf['Library'].str.split('-r\d\d-c\d\d').str[0]
 metdf[libmetadata + columns_order].to_csv("metrics_details.tsv", header=True, index=False, sep="\t")
 
 metdf_chiponly = metdf.query("not R.isna()").copy()
-metdf_sampleonly = metdf_chiponly.query('Sample != ["negativecontrol", "empty"]')[['Sample', 'Quality']]
+metdf_sampleonly = metdf_chiponly.query('Sample != ["negativecontrol", "empty"]')[['Sample', 'Quality', 'Background', 'Percent_WC']]
 
 # Good Libraries Per Sample Summary
 summary_columns = []
@@ -48,19 +51,21 @@ for n in columns_order:
     summary_columns.append("mean_" + n)
     summary_columns.append("sd_" + n)
 
-mean = metdf_chiponly.query('Sample != ["negativecontrol", "empty"] & Quality > 0.5').drop(columns=['Library', 'R', 'C']).groupby(
-    "Sample").mean()[columns_order].rename(columns=(lambda x: "mean_" + x)).reset_index()
-std = metdf_chiponly.query('Sample != ["negativecontrol", "empty"] & Quality > 0.5').drop(columns=['Library', 'R', 'C']).groupby(
-    "Sample").std()[columns_order].rename(columns=(lambda x: "sd_" + x)).reset_index()
+goodlibs_df = metdf_chiponly.query('Sample != ["negativecontrol", "empty"] & Quality > @ashleysthreshold & Background <= @bgthreshold & Percent_WC <= @wcthreshold')
+
+mean = goodlibs_df.drop(columns=['Library', 'R', 'C']).groupby("Sample").mean()[columns_order].rename(
+        columns=(lambda x: "mean_" + x)).reset_index()
+std = goodlibs_df.drop(columns=['Library', 'R', 'C']).groupby("Sample").std()[columns_order].rename(
+    columns=(lambda x: "sd_" + x)).reset_index()
 
 summary_df = pd.merge(mean, std, on="Sample")[['Sample'] + summary_columns]
-summary_df.loc[max(summary_df.index) + 1, "Sample"] = "Using good-quality libraries only (ASHLEYS > 0.5)."
+summary_df.loc[max(summary_df.index) + 1, "Sample"] = "Using good-quality libraries only (ASHLEYS > @ashleysthreshold)."
 
 # Quality Counts
-goodq_counts = metdf_sampleonly.query('Quality > 0.5').groupby("Sample").count().rename(columns={'Quality':'Good_libraries'}).reset_index()
-poorq_counts = metdf_sampleonly.query('Quality <= 0.5').groupby("Sample").count().rename(columns={'Quality':'Poor_libraries'}).reset_index()
-empty_counts = metdf_sampleonly.query('Quality.isna()').fillna(1).groupby("Sample").count().rename(columns={'Quality':'Empty_libraries'}).reset_index()
-quality_summary = metdf_sampleonly.fillna(1).groupby("Sample").count().rename(columns={'Quality':'All_libraries'}).reset_index()
+goodq_counts= goodlibs_df[["Sample", "Quality"]].groupby("Sample").count().rename(columns={'Quality':'Good_libraries'}).reset_index()
+poorq_counts = metdf_sampleonly.query('Quality <= @ashleysthreshold | Background > @bgthreshold | Percent_WC > @wcthreshold')[["Sample", "Quality"]].groupby("Sample").count().rename(columns={'Quality':'Poor_libraries'}).reset_index()
+empty_counts = metdf_sampleonly.query('Quality.isna()').fillna(1)[["Sample", "Quality"]].groupby("Sample").count().rename(columns={'Quality':'Empty_libraries'}).reset_index()
+quality_summary = metdf_sampleonly.drop(columns=['Background', 'Percent_WC']).fillna(1).groupby("Sample").count().rename(columns={'Quality':'All_libraries'}).reset_index()
 
 for n in [goodq_counts, poorq_counts, empty_counts]:
     colname = n.columns[1]
