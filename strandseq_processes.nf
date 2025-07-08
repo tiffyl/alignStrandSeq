@@ -195,12 +195,16 @@ process preseq_group {
 
     input:
         path(preseqEst)
+        val(poorLibsList) 
 
     output:
         path("*.pdf")
 
     script:
     """
+    ## Remove poor libs from the group preseq
+    cat ${poorLibsList.join(" ")} | while read file; do if [[ -f \$file* ]]; then rm \$file*; fi; done
+
     python ${projectDir}/scripts/07b-preseq-group.py ${params.genomesize} "./" 
     """
 }
@@ -210,23 +214,42 @@ process ashleysqc {
     label "light_mem"
     label "high_cpus"
 
-    publishDir "${params.pipedir}/bam", mode: 'copy', pattern: "${sampleId}"
-
     input:
         tuple val(sampleId), path(bams)
 
     output:
-        path("${sampleId}/"), emit: bamDirs
-        path("${sampleId}.libquality.txt"), emit: ashleysQscores
+        tuple val(sampleId), path("${sampleId}/"), emit: bamDirs
+        tuple val(sampleId), path("${sampleId}.libquality.txt"), emit: ashleysQscores
 
     script:
     """
-    mkdir -p ./${sampleId}/poor_quality
+    mkdir -p ./${sampleId}
     mv ${sampleId}*.processed.bam* ./${sampleId}
 
     bash ${projectDir}/scripts/08-ashleys.sh ${params.threads} ${params.genomesize} ./${sampleId}
+    """
+}
 
-    awk '(\$3 <= 0.5) {print \$1}' ${sampleId}.libquality.txt | while read bamfile; do mv ./${sampleId}/\$bamfile* ./${sampleId}/poor_quality; done
+process libraries_filter {
+    publishDir "${params.pipedir}/bam", mode: 'copy', pattern: "${sampleId}"
+
+    input:
+        tuple val(sampleId), path(bamdirLibqualBprstats)
+
+    output:
+        path("${sampleId}/"), emit: bamDirs
+        path("*poorlibs.txt"), emit: poorLibs
+
+    script:
+    """
+    read -a sorted <<< \$(echo ${bamdirLibqualBprstats} | tr " " "\n" | sort | tr "\n" " ")
+    bamdir=\${sorted[0]}
+    bprstats=\${sorted[1]}
+    libqual=\${sorted[2]}
+    
+    mkdir -p ${sampleId}/poor_quality
+    cat <( awk '( NR > 1 && \$3 <= ${params.ashleysthreshold} ) {print \$1}' \$libqual) <(awk '( NR > 1 && \$5 > ${params.wcthreshold} || NR > 1 && \$2 > ${params.bgthreshold} ) {print \$1}' \$bprstats) | cut -f1 -d "." | sort | uniq > ${sampleId}.poorlibs.txt
+    cat ${sampleId}.poorlibs.txt | while read bamfile; do if [[ -f ./\$bamdir/\$bamfile* ]]; then mv ./\$bamdir/\$bamfile* ./\$bamdir/poor_quality; fi; done
     """
 }
 
@@ -244,6 +267,7 @@ process uniqreads {
     bash ${projectDir}/scripts/stats-uniqreads.sh ${bamdir}
     """
 }
+
 
 // OUTPUT FILES
 process output_trimmedfastq {
@@ -290,6 +314,7 @@ process output_bpr {
     cp -Lr *BPR_output ${params.pipedir}/BPRs/
     """
 }
+
 
 // STATS PROCESSES
 process picard_collectalign {

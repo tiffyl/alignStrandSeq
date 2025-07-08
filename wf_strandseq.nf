@@ -6,16 +6,19 @@ if ( params.help ) {
     help = """wf_strandseq.nf:
              |
              |Optional arguments:
-             |  --paired <true/false>   Paired end reads. [default: ${params.paired}]
-             |  --b2f <path>            Full path to run directory for bases2fastq with default parameters.
-             |  --b2fdir <path>         Full path to existing output directory of bases2fastq execution (Ran with default parameters).
-             |  --pipedir <path>        Full path to directory for pipeline (for input and output). [default: "./"]
-             |  --ref <str>             Reference genome (Options in /projects/lansdorp/references/ with bowtie2 directory). [default: ${params.ref}]
-             |  --elevate               Elevate adapters are used.
-             |  --threads <int>         Number of threads. [default: ${params.threads}]
-             |  --keeptrim              Keep trimmed fastqs. [default: ${params.keeptrim}]
-             |  --keeprawbam            Keep raw bam files. [default: ${params.keeprawbam}]
-             |  --keepbpr               Keep BPR_output directories. [default: ${params.keepbpr}]
+             |  --b2f <path>                Full path to run directory for bases2fastq with default parameters.
+             |  --b2fdir <path>             Full path to existing output directory of bases2fastq execution (Ran with default parameters).
+             |  --pipedir <path>            Full path to directory for pipeline (for input and output). [default: "./"]
+             |  --paired <true/false>       Paired end reads. [default: ${params.paired}]
+             |  --ref <str>                 Reference genome (Options in /projects/lansdorp/references/ with bowtie2 directory). [default: ${params.ref}]
+             |  --threads <int>             Number of threads. [default: ${params.threads}]
+             |  --ashleysthreshold <float>  Minimum threshold for Ashleys' QC filtering (0-1). [default: ${params.ashleysthreshold}]
+             |  --wcthreshold <float>       Maximum threshold for WC fraction filtering (0-1). [default: ${params.wcthreshold}]
+             |  --bgthreshold <float>       Maximum threshold for background filtering (0-1). [default: ${params.bgthreshold}]
+             |  --elevate                   Elevate adapters are used. [default: ${params.elevate}]
+             |  --keeptrim                  Keep trimmed fastqs. [default: ${params.keeptrim}]
+             |  --keeprawbam                Keep raw bam files. [default: ${params.keeprawbam}]
+             |  --keepbpr                   Keep BPR_output directories. [default: ${params.keepbpr}]
              |
              |Optional Nextflow arugments:
              |  -N <str>                Email to receive workflow notification.
@@ -52,6 +55,7 @@ include {
     picard_mkdup
     breakpointr
     ashleysqc
+    libraries_filter
     uniqreads
     preseq
     preseq_indiv
@@ -74,15 +78,10 @@ include {
     output_trimmedfastq
     output_rawbams
     output_bpr
-} from './strandseq_processes.nf'
-
-// REQUIRED
-if ( ! params.paired ) {
-    error("ERROR: Please specify the if data is paired or single ended the --paired parameter [true/false].")
-}
+} from './v2_strandseq_processes.nf'
 
 // REFERENCES
-if ( ! params.genomesize ){
+if ( params.genomesize == null ){
     error("ERROR: Selected reference genome is not available for the alignStrandSeq pipeline.")
 }
 
@@ -151,14 +150,18 @@ workflow {
     //BreakPointR
     breakpointr(sampleBams_ch)
 
-    //Ashleys or QC [TBD]
+    //Ashleys or QC
     ashleysqc(sampleBams_ch)
-    uniqreads(ashleysqc.out.bamDirs)
+    tofilter_ch = ashleysqc.out.bamDirs.mix(ashleysqc.out.ashleysQscores)
+        .mix(breakpointr.out.bprstats)
+        .groupTuple(by:0)
+    libraries_filter(tofilter_ch)
+    uniqreads(libraries_filter.out.bamDirs)
 
     //PreSeq
     preseq(picard_mkdup.out.processedBams.filter{ id -> (id =~ /-r..-c../) })
     preseq_indiv(preseq.out.preseqFiles)
-    preseq_group(preseq.out.preseqFiles.map{ id, file1, file2 -> [file1, file2]}.flatten().collect())
+    preseq_group(preseq.out.preseqFiles.map{ id, file1, file2 -> [file1, file2]}.flatten().collect(), libraries_filter.out.poorLibs.collect())
 
     //STATS
     stats_adapter(trim_adapter.out.trimLogs.collect())
@@ -175,12 +178,12 @@ workflow {
     stats_gcbias(picard_collectinsertgc.out.gcmets.collect())
 
     stats_breakpointr(breakpointr.out.bprstats.map{ id, file -> file }.flatten().collect(), breakpointr.out.chrstates.collect())
-    stats_ashleys(ashleysqc.out.ashleysQscores.collect())
+    stats_ashleys(ashleysqc.out.ashleysQscores.map{ id, file -> file }.flatten().collect())
     stats_uniqreads(uniqreads.out.uniqReads.collect())
     stats_complexity(preseq_indiv.out.complexity.collect())
 
     //BACKGROUND
-    stats_background(ashleysqc.out.bamDirs.filter{ file -> !(file.baseName =~ /(?i)^un*/) }.collect(), 
+    stats_background(libraries_filter.out.bamDirs.filter{ file -> !(file.baseName =~ /(?i)^un*/) }.collect(), 
                     breakpointr.out.wwchr1.filter{ file -> !(file.baseName =~ /(?i)^un*/) }.collect())
     plots_background(stats_background.out.bgFiles)
 
