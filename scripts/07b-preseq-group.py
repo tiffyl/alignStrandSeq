@@ -108,7 +108,7 @@ def complexity_plot(sampleId):
     if (sampleId == ""):
         hist1gb = preseqdf.query('Total_Gb == 1.0')[['Genome_Coverage']]
         
-        ax2.hist(hist1gb, bins=int(round(max_gencov, 0)), orientation="horizontal")
+        ax2.hist(hist1gb, bins=list(range(int(round(max_gencov, 0)))), orientation="horizontal")
         ax2.set_ylim(0, max_gencov)
         ax2.set_yticks(np.arange(0, max_gencov + 1, 2))
             
