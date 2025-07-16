@@ -59,7 +59,7 @@ std = goodlibs_df.drop(columns=['Library', 'R', 'C']).groupby("Sample").std()[co
     columns=(lambda x: "sd_" + x)).reset_index()
 
 summary_df = pd.merge(mean, std, on="Sample")[['Sample'] + summary_columns]
-summary_df.loc[max(summary_df.index) + 1, "Sample"] = "Using good-quality libraries only (ASHLEYS > @ashleysthreshold)."
+summary_df.loc[max(summary_df.index) + 1, "Sample"] = f"Using good-quality libraries only (Quality > {ashleysthreshold}, Background <= {bgthreshold}, Percent_WC <= {wcthreshold})."
 
 # Quality Counts
 goodq_counts= goodlibs_df[["Sample", "Quality"]].groupby("Sample").count().rename(columns={'Quality':'Good_libraries'}).reset_index()

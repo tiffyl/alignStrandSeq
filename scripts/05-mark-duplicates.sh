@@ -8,10 +8,10 @@
 bam=$1
 
 ## SCRIPT
-libId=$(basename $bam .trimmed.filtered.bam)
+libId=$(basename $bam | cut -f1 -d ".")
 
 java -jar /usr/picard/picard.jar MarkDuplicates \
-	-I ${libId}.trimmed.filtered.bam \
+	-I ${bam} \
 	-O ${libId}.processed.bam \
 	-M ${libId}.mdup.txt \
 	--VALIDATION_STRINGENCY LENIENT \

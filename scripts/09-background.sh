@@ -36,5 +36,3 @@ samtools index -@ $threads $sampleId.background.bam
 samtools index -@ $threads $sampleId.directional.bam
 
 echo -e "$(samtools view -c $sampleId.background.bam) $(($(samtools view -c $sampleId.directional.bam)*100))" > $sampleId.readcounts.txt
-
-rm -r ./tmp/
