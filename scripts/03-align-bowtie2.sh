@@ -1,18 +1,49 @@
 #! /bin/bash
 
-## PURPOSE: Align bam files to given reference genome (converted & sort to bam) with bowtie2
-## USAGE:   bash 03-align-bowtie2.sh <paired> <threads> <reference> <r1.fastq> (<r2.fastq>) 
-## OUTPUT:  ./{libId}.trimmed.bam
+## PARAMETERS
+helpFunction()
+{
+    echo "PURPOSE: Align bam files to given reference genome (converted & sort to bam) with bowtie2."
+    echo "OUTPUT:  ./{libId}.trimmed.bam"
+    echo ""
+    echo "USAGE: bash $0 -1 <r1.fastq> -p <paired (true/false)>"
+    echo -e "\t-1 path       R1 fastq. *Required*"
+    echo -e "\t-2 path       R2 fastq."
+    echo -e "\t-p bool       Paired-end reads. *Required*"
+    echo -e "\t-g str        Reference genome. *Required*" 
+    echo -e "\t-t int        Number of threads. [Default: 12]"
+    echo -e "\t-h            Help message."
 
-## VARIABLES
-paired=$1
-threads=$2
-ref=$(ls /projects/lansdorp/references/$3/bowtie2/*.fa)
-r1fq=$4
-r2fq=$5
+    exit 1 # Exit script after printing help
+}
+
+while getopts "1:2:p:g:t:h" opt
+do
+    case "$opt" in
+        1 ) r1fq="$OPTARG" ;;
+        2 ) r2fq="$OPTARG" ;;
+        p ) paired="$OPTARG" ;;
+        g ) genome="$OPTARG" ;;
+        t ) threads="$OPTARG" ;;
+        h ) helpFunction ;;
+        ? ) helpFunction ;; # Print helpFunction in case parameter is non-existent
+   esac
+done
+
+# Required
+if [[ -z $r1fq || -z $paired || -z $genome ]]; then
+    echo "ERROR: Missing required parameters."
+    helpFunction
+fi
+
+# Default
+if [[ -z $threads ]]; then
+    threads=12 
+fi
 
 ## SCRIPT
 libId=$(basename $r1fq | cut -f1 -d ".")
+ref=$(ls /projects/lansdorp/references/$genome/bowtie2/*.fa)
 
 if $paired;
 then

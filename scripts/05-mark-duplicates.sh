@@ -1,11 +1,32 @@
 #! /bin/bash
 
-## PURPOSE: Mark duplicates in bam file.
-## USAGE:   bash 05-mark-duplicates.sh <bam>
-## OUTPUT:  ./{libId}.processed.bam ./{libId}.processed.bam.bai ./{libId}.mdup.txt
+## PARAMETERS
+helpFunction()
+{
+    echo "PURPOSE: Mark duplicates in bam file."
+    echo "OUTPUT:  ./{libId}.processed.bam ./{libId}.processed.bam.bai ./{libId}.mdup.txt"
+    echo ""
+    echo "USAGE: bash $0 -i <bam>"
+    echo -e "\t-i path       Input bam. *Required*"
+    echo -e "\t-h            Help message."
 
-## VARIABLES
-bam=$1
+    exit 1 # Exit script after printing help
+}
+
+while getopts "i:h" opt
+do
+    case "$opt" in
+        i ) bam="$OPTARG" ;;
+        h ) helpFunction ;;
+        ? ) helpFunction ;; # Print helpFunction in case parameter is non-existent
+   esac
+done
+
+# Required
+if [[ -z $bam ]]; then
+    echo "ERROR: Missing required parameters."
+    helpFunction
+fi
 
 ## SCRIPT
 libId=$(basename $bam | cut -f1 -d ".")

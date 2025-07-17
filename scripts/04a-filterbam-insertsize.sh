@@ -1,14 +1,41 @@
 #! /bin/bash
 
-## PURPOSE: Filter bam files wiht provided minimum insert size length
-## USAGE:   bash 04a-filterbam-insertsize.sh <threads> <bam> <insert size> 
-##			Only for paired end reads as that's the only bam file that will provide insert size
-## OUTPUT:  {sample}.ins{size}.bam
+## PARAMETERS
+helpFunction()
+{
+    echo "PURPOSE: Filter bam files with provided minimum insert size length."
+    echo "OUTPUT:  {sample}.ins{size}.bam"
+    echo ""
+    echo "USAGE: bash $0 -i <bam> -s <insertsize>"
+    echo -e "\t-i path       Input BAM file. *Required*"
+    echo -e "\t-s int        Minimum insert size to filter. *Required*"
+    echo -e "\t-t int        Number of threads. [Default: 12]"
+    echo -e "\t-h            Help message."
 
-## VARIABLES
-threads=$1
-bam=$2
-size=$3
+    exit 1 # Exit script after printing help
+}
+
+while getopts "i:s:t:h" opt
+do
+    case "$opt" in
+        i ) bam="$OPTARG" ;;
+        s ) size="$OPTARG" ;;
+        t ) threads="$OPTARG" ;;
+        h ) helpFunction ;;
+        ? ) helpFunction ;; # Print helpFunction in case parameter is non-existent
+   esac
+done
+
+# Required
+if [[ -z $bam || -z $size ]]; then
+    echo "ERROR: Missing required parameters."
+    helpFunction
+fi
+
+# Default
+if [[ -z $threads ]]; then
+    threads=12 
+fi
 
 ## SCRIPT
 sample=$(basename $bam | cut -f1 -d ".")

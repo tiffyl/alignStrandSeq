@@ -4,10 +4,37 @@
 ## USAGE:   bash 07-preseq.sh <bam> <genomesize> (<failedlistfile>)
 ## OUTPUT:  ./{libId}.preseq.estimate ./{libId}.preseq.log (filefailedlist)
 
-## VARIABLES
-bam=$1
-genomesize=$2
-failedlistfile=$3
+## PARAMETERS
+helpFunction()
+{
+    echo "PURPOSE: Generate complexity curves using preseq gc_extrap."
+    echo "OUTPUT:  ./{libId}.preseq.estimate ./{libId}.preseq.log (filefailedlist)"
+    echo ""
+    echo "USAGE: bash $0 -i <bam> -g <genomesize>"
+    echo -e "\t-i path       Input bam. *Required*"
+    echo -e "\t-g int        Genome size. *Required*"
+    echo -e "\t-f path       File with a list of libraries that failed preseq."
+    echo -e "\t-h            Help message."
+
+    exit 1 # Exit script after printing help
+}
+
+while getopts "i:g:h" opt
+do
+    case "$opt" in
+        i ) bam="$OPTARG" ;;
+        g ) genomesize="$OPTARG" ;;
+        f ) failedlistfile="$OPTARG" ;;
+        h ) helpFunction ;;
+        ? ) helpFunction ;; # Print helpFunction in case parameter is non-existent
+   esac
+done
+
+# Required
+if [[ -z $bam || -z $genomesize ]]; then
+    echo "ERROR: Missing required parameters."
+    helpFunction
+fi
 
 ## SCRIPT
 libId=$(basename $bam | cut -f1 -d ".")

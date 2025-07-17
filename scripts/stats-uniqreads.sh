@@ -1,11 +1,32 @@
 #! /bin/bash
 
-## PURPOSE: Extract Number of good, bad libraries and unique reads a from given directory.
-## USAGE:   bash stats-uniqreads.sh <bam directory> 
-## OUTPUT:  {bamdirname}.uniqreads.tsv 
+## PARAMETERS
+helpFunction()
+{
+    echo "PURPOSE: Extract number of unique reads a from given directory."
+    echo "OUTPUT:  {bamdirname}.uniqreads.tsv "
+    echo ""
+    echo "USAGE: bash $0 -i <bam directory> "
+    echo -e "\t-i path       Input bam directory. *Required*"
+    echo -e "\t-h            Help message."
 
-## VARIABLES
-sampledir=$1
+    exit 1 # Exit script after printing help
+}
+
+while getopts "i:t:h" opt
+do
+    case "$opt" in
+        i ) sampledir="$OPTARG" ;;
+        h ) helpFunction ;;
+        ? ) helpFunction ;; # Print helpFunction in case parameter is non-existent
+   esac
+done
+
+# Required
+if [[ -z $sampledir ]]; then
+    echo "ERROR: Missing required parameters."
+    helpFunction
+fi
 
 ## SCRIPT
 sampleId=$(basename $sampledir)

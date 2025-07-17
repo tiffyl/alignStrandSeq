@@ -1,16 +1,46 @@
 #! /bin/bash
 
-## PURPOSE: Obtain GC content and size of reads in given bamfile.
-## USAGE:   bash 09a-frag-gc-size.sh <paired> <threads> <bam> <reference>
-## OUTPUT:  ./{bamId}.stats ./{bamId}.stats
+## PARAMETERS
+helpFunction()
+{
+    echo "PURPOSE: Obtain GC content and size of reads in given bamfile."
+    echo "OUTPUT: ./{bamId}.stats ./{bamId}.stats"
+    echo ""
+    echo "USAGE: bash $0 -i <bam> -p <paired> -g <genome>"
+    echo -e "\t-i path       Input bam. *Required*"
+    echo -e "\t-g str        Reference genome. *Required*"
+    echo -e "\t-p bool       Paired-end reads. *Required*"
+    echo -e "\t-t int        Number of threads. [Default: 12]"
+    echo -e "\t-h            Help message."
 
-## VARIABLES
-ppaired=$1
-threads=$2
-bam=$3
-ref=$(ls /projects/lansdorp/references/$4/bowtie2/*.fa)
+    exit 1 # Exit script after printing help
+}
+
+while getopts "i:g:p:t:h" opt
+do
+    case "$opt" in
+        i ) bam="$OPTARG" ;;
+        g ) genome="$OPTARG" ;;
+        p ) paired="$OPTARG" ;;
+        t ) threads="$OPTARG" ;;
+        h ) helpFunction ;;
+        ? ) helpFunction ;; # Print helpFunction in case parameter is non-existent
+   esac
+done
+
+# Required
+if [[ -z $dir || -z $genome || -z $paired ]]; then
+    echo "ERROR: Missing required parameters."
+    helpFunction
+fi
+
+# Default
+if [[ -z $threads ]]; then
+    threads=12 
+fi
 
 # Obtain GC content and size of reads
+ref=$(ls /projects/lansdorp/references/$genome/bowtie2/*.fa)
 stats=$(basename $bam .bam)".stats"
 
 if $paired;
