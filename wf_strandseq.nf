@@ -8,14 +8,23 @@ if ( params.help ) {
              |Optional arguments:
              |  --b2f <path>                Full path to run directory for bases2fastq with default parameters.
              |  --b2fdir <path>             Full path to existing output directory of bases2fastq execution (Ran with default parameters).
-             |  --pipedir <path>            Full path to directory for pipeline (for input and output). [default: "./"]
              |  --paired <true/false>       Paired end reads. [default: ${params.paired}]
+             |  --elevate                   Elevate adapters are used. [default: ${params.elevate}]
+             |  --nextera                   Elevate adapters are used. [default: ${params.elevate}]
              |  --ref <str>                 Reference genome (Options in /projects/lansdorp/references/ with bowtie2 directory). [default: ${params.ref}]
              |  --threads <int>             Number of threads. [default: ${params.threads}]
+             |  --pipedir <path>            Full path to directory for pipeline (for input and output). [default: "./"]
+             |  --invertyper                Run invertypeR on all files and create ideograms. [default: ${params.invertyper}]
+             |  
+             |  Filters:
              |  --ashleysthreshold <float>  Minimum threshold for Ashleys' QC filtering (0-1). [default: ${params.ashleysthreshold}]
              |  --wcthreshold <float>       Maximum threshold for WC fraction filtering (0-1). [default: ${params.wcthreshold}]
              |  --bgthreshold <float>       Maximum threshold for background filtering (0-1). [default: ${params.bgthreshold}]
-             |  --elevate                   Elevate adapters are used. [default: ${params.elevate}]
+             |  --mapq <int>                Mapping Quality threshold. [default: ${params.mapq}] 
+             |  --insertsize <int>          Minimum length of insert size. [default: ${params.insertsize}]
+             |  --depth <int>               Minimum depth of reads for SNP calling. [default: ${params.depth}]
+             |  
+             |  Outputs:
              |  --keeptrim                  Keep trimmed fastqs. [default: ${params.keeptrim}]
              |  --keeprawbam                Keep raw bam files. [default: ${params.keeprawbam}]
              |  --keepbpr                   Keep BPR_output directories. [default: ${params.keepbpr}]
@@ -30,14 +39,14 @@ if ( params.help ) {
              |The fastqs should be separated into different sample directories (./input/{sample}/*fastq.gz)
              |If fastqs were separated by lanes, put them into a 'lanes' directory, and not separated into subdirectories. (./lanes/*fastq.gz).
              | |-input                                               |-lanes
-             |   |- sample1                                             |- sample1-r1-c1_R1_L1.fastq.gz
-             |      |- sample1-r1-c1_R1.fastq.gz                        |- sample1-r1-c1_R1_L2.fastq.gz
-             |      |- sample1-r1-c1_R2.fastq.gz                        |- sample1-r1-c1_R2_L1.fastq.gz
-             |      |- sample1-r1-c2_R1.fastq.gz                        |- sample1-r1-c1_R2_L2.fastq.gz
-             |      |- sample1-r1-c2_R2.fastq.gz                        |- sample2-r2-c1_R1_L1.fastq.gz
-             |   |- sample2                                             |- sample2-r2-c1_R1_L2.fastq.gz
-             |      |- sample2-r2-c1_R1.fastq.gz                        |- sample2-r2-c1_R2_L1.fastq.gz
-             |      |- sample2-r2-c1_R2.fastq.gz                        |- sample2-r2-c1_R2_L2.fastq.gz
+             |   |- sample1                                             |- sample1-r1-c1_L1_R1.fastq.gz
+             |      |- sample1-r1-c1_R1.fastq.gz                        |- sample1-r1-c1_L1_R2.fastq.gz
+             |      |- sample1-r1-c1_R2.fastq.gz                        |- sample1-r1-c1_L2_R1.fastq.gz
+             |      |- sample1-r1-c2_R1.fastq.gz                        |- sample1-r1-c1_L2_R2.fastq.gz
+             |      |- sample1-r1-c2_R2.fastq.gz                        |- sample2-r2-c1_L1_R1.fastq.gz
+             |   |- sample2                                             |- sample2-r2-c1_L1_R2.fastq.gz
+             |      |- sample2-r2-c1_R1.fastq.gz                        |- sample2-r2-c1_L2_R1.fastq.gz
+             |      |- sample2-r2-c1_R2.fastq.gz                        |- sample2-r2-c1_L2_R2.fastq.gz
              """.stripMargin()
 
     // Print the help with the stripped margin and exit
@@ -51,6 +60,7 @@ include {
     concat_lanes
     trim_adapter
     bt2_align
+    filter_insertsize
     remove_empty
     picard_mkdup
     breakpointr
@@ -60,6 +70,9 @@ include {
     preseq
     preseq_indiv
     preseq_group
+    snpcalling
+    invertyper
+    ideogram
     picard_collectalign
     picard_collectinsertgc
     stats_adapter
@@ -78,7 +91,7 @@ include {
     output_trimmedfastq
     output_rawbams
     output_bpr
-} from './v2_strandseq_processes.nf'
+} from './strandseq_processes.nf'
 
 // REFERENCES
 if ( params.genomesize == null ){
@@ -141,8 +154,15 @@ workflow {
     //Align
     bt2_align(trim_adapter.out.trimmedFastqs)
 
+    if ( params.paired && params.insertsize > 0 ) {
+        processedBams_ch = filter_insertsize(bt2_align.out.bams)
+    }
+    else {
+        processedBams_ch = bt2_align.out.bams
+    }
+
     //BAM process
-    remove_empty(bt2_align.out.bams)
+    remove_empty(processedBams_ch)
     picard_mkdup(remove_empty.out.toMkdupBams)
 
     sampleBams_ch = picard_mkdup.out.processedBams.groupTuple().map{ id, files -> [id, files.flatten()] }
@@ -152,8 +172,8 @@ workflow {
 
     //Ashleys or QC
     ashleysqc(sampleBams_ch)
-    tofilter_ch = ashleysqc.out.bamDirs.mix(ashleysqc.out.ashleysQscores)
-        .mix(breakpointr.out.bprstats)
+    tofilter_ch = ashleysqc.out.bamDirs.concat(breakpointr.out.bprstats)
+        .concat(ashleysqc.out.ashleysQscores)
         .groupTuple(by:0)
     libraries_filter(tofilter_ch)
     uniqreads(libraries_filter.out.bamDirs)
@@ -163,6 +183,14 @@ workflow {
     preseq_indiv(preseq.out.preseqFiles)
     preseq_group(preseq.out.preseqFiles.map{ id, file1, file2 -> [file1, file2]}.flatten().collect(), libraries_filter.out.poorLibs.collect())
 
+    //InvertypeR
+    if ( params.b2fdir ) {
+        snpcalling(libraries_filter.out.bamDirs.filter{ id, dir -> !(id =~ /(?i)^un*/) })
+        inv_ch = libraries_filter.out.bamDirs.concat(snpcalling.out.vcfs).groupTuple(by:0)
+        invertyper(inv_ch)
+        ideogram(invertyper.out.inversions)
+    }
+    
     //STATS
     stats_adapter(trim_adapter.out.trimLogs.collect())
 
@@ -183,7 +211,7 @@ workflow {
     stats_complexity(preseq_indiv.out.complexity.collect())
 
     //BACKGROUND
-    stats_background(libraries_filter.out.bamDirs.filter{ file -> !(file.baseName =~ /(?i)^un*/) }.collect(), 
+    stats_background(libraries_filter.out.bamDirs.filter{ id, dir -> !(id =~ /(?i)^un*/) }.map{ id, dir -> dir }.collect(), 
                     breakpointr.out.wwchr1.filter{ file -> !(file.baseName =~ /(?i)^un*/) }.collect())
     plots_background(stats_background.out.bgFiles)
 

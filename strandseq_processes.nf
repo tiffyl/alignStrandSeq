@@ -17,7 +17,7 @@ process bases2fastq {
 
     script:
     """
-    bash ${projectDir}/scripts/00-bases2fastq.sh ${params.totalCores / 2} $b2fdir
+    bash ${projectDir}/scripts/00-bases2fastq.sh -i $b2fdir -t ${params.totalCores / 2} 
     """
 }
 
@@ -33,7 +33,7 @@ process concat_lanes {
 
     script:
     """
-    bash ${projectDir}/scripts/01-concat-lanes.sh ${params.paired} ${params.subthreads} ${lanesdir}
+    bash ${projectDir}/scripts/01-concat-lanes.sh -i ${lanesdir} -p ${params.paired} -t ${params.subthreads} 
     """
 }
 
@@ -51,9 +51,9 @@ process trim_adapter {
     """
     if ${params.paired};
     then
-        bash ${projectDir}/scripts/02-trim-adapters.sh ${params.paired} ${params.elevate} ${fastq[0]} ${fastq[1]} 
+        bash ${projectDir}/scripts/02-trim-adapters.sh -1 ${fastq[0]} -2 ${fastq[1]}  -p ${params.paired} -e ${params.elevate} -n ${params.nextera}
     else
-        bash ${projectDir}/scripts/02-trim-adapters.sh ${params.paired} ${params.elevate} ${fastq}
+        bash ${projectDir}/scripts/02-trim-adapters.sh -1 ${fastq} -p ${params.paired} -e ${params.elevate} -n ${params.nextera}
     fi
     """
 }
@@ -74,13 +74,27 @@ process bt2_align {
     """
     if ${params.paired};
     then
-        bash ${projectDir}/scripts/03-align-bowtie2.sh ${params.paired} ${params.subthreads} ${params.ref} ${trimmedfastq[0]} ${trimmedfastq[1]} 
+        bash ${projectDir}/scripts/03-align-bowtie2.sh -1 ${trimmedfastq[0]} -2 ${trimmedfastq[1]} -g ${params.ref} -p ${params.paired} -t ${params.subthreads}  
     else
-        bash ${projectDir}/scripts/03-align-bowtie2.sh ${params.paired} ${params.subthreads} ${params.ref} ${trimmedfastq}
+        bash ${projectDir}/scripts/03-align-bowtie2.sh -1 ${trimmedfastq} -g ${params.ref} -p ${params.paired} -t ${params.subthreads} 
     fi
 
-    bash ${projectDir}/scripts/04-filter-bam.sh ${params.paired} ${params.subthreads} ${libId}.trimmed.bam false
+    bash ${projectDir}/scripts/04-filter-bam.sh -i ${libId}.trimmed.bam -p ${params.paired} -m ${params.mapq} -s false -t ${params.subthreads}  
+    """
+}
 
+process filter_insertsize {
+    container "${projectDir}/singularity/sambamba.sif"
+
+    input:
+        tuple val(libId), path(bam)
+
+    output:
+        tuple val(libId), path("${libId}.ins*.bam"), emit: bams
+
+    script:
+    """
+    bash ${projectDir}/scripts/04a-filterbam-insertsize.sh -i ${bam} -s ${params.insertsize} -t ${params.subthreads} 
     """
 }
 
@@ -124,7 +138,7 @@ process picard_mkdup {
     script:
     sampleId = libId.split(/-r\d{2}-c\d{2}/)[0]
     """
-    bash ${projectDir}/scripts/05-mark-duplicates.sh ${bam}
+    bash ${projectDir}/scripts/05-mark-duplicates.sh -i ${bam}
     """
 }
 
@@ -166,7 +180,7 @@ process preseq {
 
     script:
     """
-    bash ${projectDir}/scripts/07-preseq.sh ${bam[0]} ${params.genomesize}
+    bash ${projectDir}/scripts/07-preseq.sh -i ${bam[0]} -g ${params.genomesize}
     """
 }
 
@@ -226,7 +240,7 @@ process ashleysqc {
     mkdir -p ./${sampleId}
     mv ${sampleId}*.processed.bam* ./${sampleId}
 
-    bash ${projectDir}/scripts/08-ashleys.sh ${params.threads} ${params.genomesize} ./${sampleId}
+    bash ${projectDir}/scripts/08-ashleys.sh -i ./${sampleId} -g ${params.genomesize} -t ${params.threads} 
     """
 }
 
@@ -234,21 +248,18 @@ process libraries_filter {
     publishDir "${params.pipedir}/bam", mode: 'copy', pattern: "${sampleId}"
 
     input:
-        tuple val(sampleId), path(bamdirLibqualBprstats)
+        tuple val(sampleId), path(bamdirBprstatsLibqual)
 
     output:
-        path("${sampleId}/"), emit: bamDirs
+        tuple val(sampleId), path("${sampleId}/"), emit: bamDirs
         path("*poorlibs.txt"), emit: poorLibs
 
     script:
     """
-    read -a sorted <<< \$(echo ${bamdirLibqualBprstats} | tr " " "\n" | sort | tr "\n" " ")
-    bamdir=\${sorted[0]}
-    bprstats=\${sorted[1]}
-    libqual=\${sorted[2]}
+    bamdir=${bamdirBprstatsLibqual[0]}
     
     mkdir -p ${sampleId}/poor_quality
-    cat <( awk '( NR > 1 && \$3 <= ${params.ashleysthreshold} ) {print \$1}' \$libqual) <(awk '( NR > 1 && \$5 > ${params.wcthreshold} || NR > 1 && \$2 > ${params.bgthreshold} ) {print \$1}' \$bprstats) | cut -f1 -d "." | sort | uniq > ${sampleId}.poorlibs.txt
+    cat <( awk '( NR > 1 && \$3 <= ${params.ashleysthreshold} ) {print \$1}' ${bamdirBprstatsLibqual[2]}) <(awk '( NR > 1 && \$5 > ${params.wcthreshold} || NR > 1 && \$2 > ${params.bgthreshold} ) {print \$1}' ${bamdirBprstatsLibqual[1]}) | cut -f1 -d "." | sort | uniq > ${sampleId}.poorlibs.txt
     cat ${sampleId}.poorlibs.txt | while read bamfile; do if [[ -f ./\$bamdir/\$bamfile* ]]; then mv ./\$bamdir/\$bamfile* ./\$bamdir/poor_quality; fi; done
     """
 }
@@ -257,17 +268,73 @@ process uniqreads {
     container "${projectDir}/singularity/bowtie2_samtools_bedtools.sif"
 
     input:
-        path(bamdir)
+        tuple val(sampleId), path(bamdir)
 
     output:
         path("*.uniqreads.tsv"), emit: uniqReads
 
     script:
     """
-    bash ${projectDir}/scripts/stats-uniqreads.sh ${bamdir}
+    bash ${projectDir}/scripts/stats-uniqreads.sh -i ${bamdir}
     """
 }
 
+process snpcalling {
+    container "${projectDir}/singularity/bcftools.sif"
+
+    input:
+        tuple val(sampleId), path(bamdir)
+
+    output:
+        tuple val(sampleId), path("*bcftools*.vcf.gz"), emit: vcfs
+
+    script:
+    """
+    bash ${projectDir}/scripts/inv01-snpcalling.sh -i ${bamdir} -g ${params.ref} -d ${params.depth} -t ${params.subthreads}
+    """
+}
+
+process invertyper {
+    container "${projectDir}/singularity/strandseq_Rtools.sif"
+    publishDir "${params.pipedir}/analysis/invertypeR/", mode: 'copy'
+    label "light_mem"
+    label "high_cpus"
+
+    input:
+        tuple val(sampleId), path(bamdirVcf)
+
+    output:
+        tuple val(sampleId), path("${sampleId}_invertypeR/"), emit: inversions
+
+    script:
+    """
+    Rscript ${projectDir}/scripts/inv02-invertypeR.R -i ${bamdirVcf[0]} -v ${bamdirVcf[1]} -p ${params.paired} -t ${params.subthreads}
+    """
+}
+
+process ideogram {
+    container "${projectDir}/singularity/rIdeogram.sif"
+    publishDir "${params.pipedir}/analysis/invertypeR/${sampleId}_invertypeR/", mode: 'copy'
+
+    input:
+        tuple val(sampleId), path(invertyperDir)
+
+    output:
+        path("*.inversions.png")
+
+    script:
+    """
+    sed -i "s/\$/\tbpr\tcircle/g" ${invertyperDir}/breakpointr_inversions.txt 
+    sed -i "s/\$/\tprovided\tbox/g" ${invertyperDir}/inversions.txt
+
+    cat <( tail +2 ${invertyperDir}/breakpointr_inversions.txt | cut -f1-3,8,11,12) <( tail +2 ${invertyperDir}/inversions.txt | cut -f1-3,8,11,12) | grep -v "0|0" > ${sampleId}.inversions.tsv
+    sed -i 's/1|1/1/g' ${sampleId}.inversions.tsv
+    sed -i 's/0|1\\|1|0/0/g' ${sampleId}.inversions.tsv
+    sed -i 's/chr//g' ${sampleId}.inversions.tsv
+
+    Rscript ${projectDir}/scripts/inv03-ideogram.R ${sampleId}.inversions.tsv
+    """
+}
 
 // OUTPUT FILES
 process output_trimmedfastq {
@@ -330,7 +397,7 @@ process picard_collectalign {
 
     script:
     """
-    bash ${projectDir}/scripts/stats-alignment.sh ${bam}
+    bash ${projectDir}/scripts/stats-alignment.sh -i ${bam}
     """    
 }
 
@@ -352,8 +419,8 @@ process picard_collectinsertgc {
         path("*.gc_bias.pdf")
     
     """
-    bash ${projectDir}/scripts/stats-insertsize.sh ${bam[0]} 
-    bash ${projectDir}/scripts/stats-gcbias.sh ${bam[0]} ${params.ref}
+    bash ${projectDir}/scripts/stats-insertsize.sh -i ${bam[0]} 
+    bash ${projectDir}/scripts/stats-gcbias.sh -i ${bam[0]} -g ${params.ref}
     """
 }
 
@@ -579,7 +646,7 @@ process stats_background {
     ls -d */ | while read bamdir
     do
         if ls \$bamdir/*bam* 1> /dev/null 2>&1; then
-            bash ${projectDir}/scripts/09-background.sh ${params.paired} ${params.threads} \$bamdir \$(basename \$bamdir).wwchr1.list 
+            bash ${projectDir}/scripts/09-background.sh -i \$bamdir -f \$(basename \$bamdir).wwchr1.list -p ${params.paired} -t ${params.threads} 
         fi
     done
 
@@ -595,7 +662,7 @@ process stats_background {
     ## Stats
     ls *.bam | while read bamfile;
     do
-        bash ${projectDir}/scripts/09a-frag-gc-size.sh ${params.paired} ${params.threads} \$bamfile ${params.ref}
+        bash ${projectDir}/scripts/09a-frag-gc-size.sh -i \$bamfile -g ${params.ref} -p ${params.paired} -t ${params.threads} 
     done
     """
 }
