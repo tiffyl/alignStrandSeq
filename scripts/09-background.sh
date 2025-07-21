@@ -19,7 +19,7 @@ helpFunction()
 while getopts "i:p:f:t:h" opt
 do
     case "$opt" in
-        i ) bam="$OPTARG" ;;
+        i ) bamdir="$OPTARG" ;;
         p ) paired="$OPTARG" ;;
         f ) chr1wwlist="$OPTARG" ;;
         t ) threads="$OPTARG" ;;
@@ -48,8 +48,8 @@ mkdir ./tmp/
 grep -f <(ls $bamdir/*.bam | sed 's@.*/@@g' | cut -f1 -d ".") $chr1wwlist | while read filename
 do
     if $paired; then
-        samtools view -bh -F4 -F1024 -f81 $bamdir/$filename.*.bam chr1:169000000-248956422 > ./tmp/$filename.directional.r1.tmp
-		samtools view -bh -F4 -F1024 -f161 $bamdir/$filename.*.bam chr1:169000000-248956422 > ./tmp/$filename.directional.r2.tmp
+        samtools view -bh -F4 -F1024 -f81 -s 111.01 $bamdir/$filename.*.bam chr1:169000000-248956422 > ./tmp/$filename.directional.r1.tmp
+		samtools view -bh -F4 -F1024 -f161 -s 111.01 $bamdir/$filename.*.bam chr1:169000000-248956422 > ./tmp/$filename.directional.r2.tmp
         samtools view -bh -F4 -F1024 -f97 $bamdir/$filename.*.bam chr1:169000000-248956422 > ./tmp/$filename.background.r1.tmp
         samtools view -bh -F4 -F1024 -f145 $bamdir/$filename.*.bam chr1:169000000-248956422 > ./tmp/$filename.background.r2.tmp
     else
