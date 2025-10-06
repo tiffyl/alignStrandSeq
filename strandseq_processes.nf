@@ -51,7 +51,7 @@ process trim_adapter {
     """
     if ${params.paired};
     then
-        bash ${projectDir}/scripts/02-trim-adapters.sh -1 ${fastq[0]} -2 ${fastq[1]}  -p ${params.paired} -e ${params.elevate} -n ${params.nextera}
+        bash ${projectDir}/scripts/02-trim-adapters.sh -1 ${fastq[0]} -2 ${fastq[1]} -p ${params.paired} -e ${params.elevate} -n ${params.nextera}
     else
         bash ${projectDir}/scripts/02-trim-adapters.sh -1 ${fastq} -p ${params.paired} -e ${params.elevate} -n ${params.nextera}
     fi
@@ -79,7 +79,7 @@ process bt2_align {
         bash ${projectDir}/scripts/03-align-bowtie2.sh -1 ${trimmedfastq} -g ${params.ref} -p ${params.paired} -t ${params.subthreads} 
     fi
 
-    bash ${projectDir}/scripts/04-filter-bam.sh -i ${libId}.trimmed.bam -p ${params.paired} -m ${params.mapq} -s false -t ${params.subthreads}  
+    bash ${projectDir}/scripts/04-filter-bam.sh -i ${libId}.trimmed.bam -p ${params.paired} -m ${params.mapq} -g ${params.ref} -s false -t ${params.subthreads}  
     """
 }
 
@@ -136,7 +136,7 @@ process picard_mkdup {
         path("${libId}.mdup.txt"), emit: mkdupLogs
 
     script:
-    sampleId = libId.split(/-r\d{2}-c\d{2}/)[0]
+    sampleId = libId.split(/-r\d+-c\d+/)[0]
     """
     bash ${projectDir}/scripts/05-mark-duplicates.sh -i ${bam}
     """
@@ -145,6 +145,7 @@ process picard_mkdup {
 process breakpointr {
     container "${projectDir}/singularity/strandseq_Rtools.sif"
     publishDir "${params.pipedir}/analysis/breaksPlot/", mode: 'copy', pattern: "*breaksPlot.pdf"
+    maxForks 4
     label "light_mem"
 
     input:
@@ -162,8 +163,8 @@ process breakpointr {
     mkdir -p ./${sampleId}
     mv *.bam* ./${sampleId}
 
-    Rscript ${projectDir}/scripts/06-breakpointr.R ${params.paired} ${params.threads} ./${sampleId} 
-    Rscript ${projectDir}/scripts/stats-breakpointr.R ${sampleId}_BPR_output
+    Rscript ${projectDir}/scripts/06-breakpointr.R ${params.paired} ${params.threads} ./${sampleId} ${params.ref}
+    Rscript ${projectDir}/scripts/06a-stats-breakpointr.R ${sampleId}_BPR_output
 
     mv ${sampleId}_BPR_output/plots/breaksPlot.pdf ${sampleId}.breaksPlot.pdf
     """
@@ -227,7 +228,7 @@ process ashleysqc {
     container "${projectDir}/singularity/ashleysqc.sif"
     label "light_mem"
     label "high_cpus"
-
+    
     input:
         tuple val(sampleId), path(bams)
 
@@ -258,9 +259,14 @@ process libraries_filter {
     """
     bamdir=${bamdirBprstatsLibqual[0]}
     
-    mkdir -p ${sampleId}/poor_quality
+    if [[ (-d \$bamdir/poor_quality) && (! -z \$(ls \$bamdir/poor_quality))]]; then
+        mv \$bamdir/poor_quality/* \$bamdir 
+    else
+        mkdir -p \$bamdir/poor_quality
+    fi
+    
     cat <( awk '( NR > 1 && \$3 <= ${params.ashleysthreshold} ) {print \$1}' ${bamdirBprstatsLibqual[2]}) <(awk '( NR > 1 && \$5 > ${params.wcthreshold} || NR > 1 && \$2 > ${params.bgthreshold} ) {print \$1}' ${bamdirBprstatsLibqual[1]}) | cut -f1 -d "." | sort | uniq > ${sampleId}.poorlibs.txt
-    cat ${sampleId}.poorlibs.txt | while read bamfile; do if [[ -f ./\$bamdir/\$bamfile* ]]; then mv ./\$bamdir/\$bamfile* ./\$bamdir/poor_quality; fi; done
+    cat ${sampleId}.poorlibs.txt | while read bamfile; do if [[ -f ./\$bamdir/\$bamfile.processed.bam ]]; then mv ./\$bamdir/\$bamfile* ./\$bamdir/poor_quality; fi; done
     """
 }
 
@@ -275,7 +281,7 @@ process uniqreads {
 
     script:
     """
-    bash ${projectDir}/scripts/stats-uniqreads.sh -i ${bamdir}
+    bash ${projectDir}/scripts/08a-stats-uniqreads.sh -i ${bamdir}
     """
 }
 
@@ -397,7 +403,7 @@ process picard_collectalign {
 
     script:
     """
-    bash ${projectDir}/scripts/stats-alignment.sh -i ${bam}
+    bash ${projectDir}/scripts/03a-stats-alignment.sh -i ${bam}
     """    
 }
 
@@ -419,8 +425,8 @@ process picard_collectinsertgc {
         path("*.gc_bias.pdf")
     
     """
-    bash ${projectDir}/scripts/stats-insertsize.sh -i ${bam[0]} 
-    bash ${projectDir}/scripts/stats-gcbias.sh -i ${bam[0]} -g ${params.ref}
+    bash ${projectDir}/scripts/04b-stats-insertsize.sh -i ${bam[0]} 
+    bash ${projectDir}/scripts/04c-stats-gcbias.sh -i ${bam[0]} -g ${params.ref}
     """
 }
 
@@ -559,26 +565,39 @@ process stats_gcbias {
 }
 
 process stats_breakpointr {
-    publishDir "${params.pipedir}/analysis/", mode: 'copy', pattern: "libchromstates.txt"
     label "light_mem"
     
     input:
         val(bprstatsList)
-        val(chromstatesList)
     
     output:
         path("metrics_bprstats.txt"), emit: metrics
-        path("libchromstates.txt")
     
     script:
     """
     printf "Library\tBackground\tReads_per_Mb\tCoverage\tPercent_WC\n" > metrics_bprstats.txt
     cat ${bprstatsList.join(" ")} | grep -v "^Library" >> metrics_bprstats.txt
+    """
+}
 
-    printf "Library\t" > libchromstates.txt
-    printf "chr%d\t" {1..22} >> libchromstates.txt
-    printf "chrX\tchrY\n" >> libchromstates.txt
-    cat ${chromstatesList.join(" ")} | sort >> libchromstates.txt
+process stats_chromstates {
+    container "${projectDir}/singularity/py310_viz.sif"
+    
+    publishDir "${params.pipedir}/analysis/", mode: 'copy', pattern: "*chromstates*"
+
+    input:
+        val(chromstatesList)
+
+    output:
+        path("libchromstates.txt")
+        path("chromstates.pdf")
+
+    script:
+    """
+    head -1 ${chromstatesList[0]} >> libchromstates.txt
+    cat ${chromstatesList.join(" ")} | grep -v "library" | sort >> libchromstates.txt
+
+    python ${projectDir}/scripts/06b-bpr_chromstates_plots.py libchromstates.txt
     """
 }
 
@@ -646,13 +665,13 @@ process stats_background {
     ls -d */ | while read bamdir
     do
         if ls \$bamdir/*bam* 1> /dev/null 2>&1; then
-            bash ${projectDir}/scripts/09-background.sh -i \$bamdir -f \$(basename \$bamdir).wwchr1.list -p ${params.paired} -t ${params.threads} 
+            bash ${projectDir}/scripts/09-background.sh -i \$bamdir -f \$(basename \$bamdir).wwchr1.list -p ${params.paired} -g ${params.ref} -t ${params.threads} 
         fi
     done
 
     ## FOR ALL BACKGROUND
-    samtools merge -@ ${params.threads} background.bam *background.bam 
-    samtools merge -@ ${params.threads} directional.bam *directional.bam 
+    samtools merge -@ ${params.threads} background.bam *.background.bam 
+    samtools merge -@ ${params.threads} directional.bam *.directional.bam 
     samtools index -@ ${params.threads} background.bam
     samtools index -@ ${params.threads} directional.bam
 
@@ -698,7 +717,8 @@ process metrics_summary {
 
     script:
     """
-    python ${projectDir}/scripts/10-metrics_summary.py ${params.genomesize} ${params.ashleysthreshold} ${params.bgthreshold} ${params.wcthreshold}
-    python ${projectDir}/scripts/10a-metrics_plots.py
+    python ${projectDir}/scripts/10-metrics_summary.py 
+    python ${projectDir}/scripts/10a-metrics_excel.py metrics_details.tsv sample_uniqreads.tsv ${params.genomesize} ${params.ashleysthreshold} ${params.bgthreshold} ${params.wcthreshold}
+    python ${projectDir}/scripts/10b-metrics_plots.py metrics_details.tsv
     """
 }

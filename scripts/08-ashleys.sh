@@ -8,7 +8,7 @@ helpFunction()
     echo ""
     echo "USAGE: bash $0 -i <bam directory> -g <genome size>"
     echo -e "\t-i path       Input bam directory. *Required*"
-    echo -e "\t-g path       Genome size."
+    echo -e "\t-g path       Genome size. *Required*"
     echo -e "\t-t int        Number of threads. [Default: 12]"
     echo -e "\t-h            Help message."
 
@@ -27,7 +27,7 @@ do
 done
 
 # Required
-if [[ -z $bam || -z $genomesize ]]; then
+if [[ -z $bamdir || -z $genomesize ]]; then
     echo "ERROR: Missing required parameters."
     helpFunction
 fi

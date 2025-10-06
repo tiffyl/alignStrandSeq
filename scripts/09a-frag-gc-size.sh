@@ -29,7 +29,7 @@ do
 done
 
 # Required
-if [[ -z $dir || -z $genome || -z $paired ]]; then
+if [[ -z $bam || -z $genome || -z $paired ]]; then
     echo "ERROR: Missing required parameters."
     helpFunction
 fi

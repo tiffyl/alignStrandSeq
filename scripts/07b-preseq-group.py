@@ -46,7 +46,7 @@ allpreseqdf['Total_Gb'] = allpreseqdf['TOTAL_BASES'] / 1000000000
 allpreseqdf['Genome_Coverage'] = allpreseqdf['EXPECTED_COVERED_BASES'] / genomesize * 100
 allpreseqdf['Lower'] = allpreseqdf['LOWER_95%CI'] / genomesize * 100
 allpreseqdf['Upper'] = allpreseqdf['UPPER_95%CI'] / genomesize * 100
-allpreseqdf["SampleId"] = allpreseqdf['Library'].str.split('-r..-c..', expand=True)[0]
+allpreseqdf["SampleId"] = allpreseqdf['Library'].str.split('-r\d+-c\d+', expand=True)[0]
 allpreseqdf = allpreseqdf.iloc[:, 4:]
 
 # Samples

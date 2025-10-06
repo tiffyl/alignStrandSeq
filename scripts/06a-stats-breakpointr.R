@@ -42,7 +42,7 @@ get_states <- function(bpr_object){
 }
 
 summary_states <- bind_rows(unname(lapply(rdata, get_states)))
-write.table(summary_states, paste0(sampleId, ".chrstates.txt"), quote=FALSE, row.names=FALSE, col.names=FALSE, sep="\t")
+write.table(summary_states, paste0(sampleId, ".chrstates.txt"), quote=FALSE, row.names=FALSE, col.names=TRUE, sep="\t")
 
 # Extract libraries with WW regions on chr1 (downstream background visualization)
 bam_ww_chr1 <- summary_states %>% filter(chr1 == "ww") %>% select(library) %>% unlist() %>% unname() 

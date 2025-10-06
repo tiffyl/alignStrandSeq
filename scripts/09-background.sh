@@ -10,18 +10,20 @@ helpFunction()
     echo -e "\t-i path       Input bam directory. *Required*"
     echo -e "\t-p bool       Paired-end reads. *Required*"
     echo -e "\t-f path       File with a list of libraries where chr1 is WW. *Required*"
+    echo -e "\t-g str        Reference genome. *Required*"
     echo -e "\t-t int        Number of threads. [Default: 12]"
     echo -e "\t-h            Help message."
 
     exit 1 # Exit script after printing help
 }
 
-while getopts "i:p:f:t:h" opt
+while getopts "i:p:f:g:t:h" opt
 do
     case "$opt" in
         i ) bamdir="$OPTARG" ;;
         p ) paired="$OPTARG" ;;
         f ) chr1wwlist="$OPTARG" ;;
+        g ) genome="$OPTARG" ;;
         t ) threads="$OPTARG" ;;
         h ) helpFunction ;;
         ? ) helpFunction ;; # Print helpFunction in case parameter is non-existent
@@ -29,7 +31,7 @@ do
 done
 
 # Required
-if [[ -z $bamdir || -z $paired || -z $chr1wwlist ]]; then
+if [[ -z $bamdir || -z $paired || -z $chr1wwlist || -z $genome ]]; then
     echo "ERROR: Missing required parameters."
     helpFunction
 fi
@@ -42,26 +44,36 @@ fi
 ## SCRIPT
 sampleId=$(basename $bamdir)
 
+if [[ $genome == "hg38" || $genome == "chm13" ]]; then
+    roi="chr1:169000000-248956422"
+elif [[ $genome == "mm39" ]]; then
+    roi="chr1:115000000-195154279"
+elif [[ $genome == "canFam3" ]]; then
+    roi="chr1:43000000-122678785"
+fi
+
 mkdir ./tmp/
 
 # Extract reverse-oriented reads/pairs (background) and forward-oriented reads/pairs (directional reads---we randomly take 1% of them).
 grep -f <(ls $bamdir/*.bam | sed 's@.*/@@g' | cut -f1 -d ".") $chr1wwlist | while read filename
 do
     if $paired; then
-        samtools view -bh -F4 -F1024 -f81 -s 111.01 $bamdir/$filename.*.bam chr1:169000000-248956422 > ./tmp/$filename.directional.r1.tmp
-		samtools view -bh -F4 -F1024 -f161 -s 111.01 $bamdir/$filename.*.bam chr1:169000000-248956422 > ./tmp/$filename.directional.r2.tmp
-        samtools view -bh -F4 -F1024 -f97 $bamdir/$filename.*.bam chr1:169000000-248956422 > ./tmp/$filename.background.r1.tmp
-        samtools view -bh -F4 -F1024 -f145 $bamdir/$filename.*.bam chr1:169000000-248956422 > ./tmp/$filename.background.r2.tmp
+        samtools view -bh -F4 -F1024 -f81 -s 111.01 $bamdir/$filename.*.bam $roi > ./tmp/$filename.directional.r1.tmp
+		samtools view -bh -F4 -F1024 -f161 -s 111.01 $bamdir/$filename.*.bam $roi > ./tmp/$filename.directional.r2.tmp
+        samtools view -bh -F4 -F1024 -f97 $bamdir/$filename.*.bam $roi > ./tmp/$filename.background.r1.tmp
+        samtools view -bh -F4 -F1024 -f145 $bamdir/$filename.*.bam $roi > ./tmp/$filename.background.r2.tmp
     else
-        samtools view -bh -F4 -F1024 -f16 -s 111.01 $bamdir/$filename.*.bam chr1:169000000-248956422 > ./tmp/$filename.directional.r1.tmp
-        samtools view -bh -F4 -F1024 -F16 $bamdir/$filename.*.bam chr1:169000000-248956422 > ./tmp/$filename.background.r1.tmp
+        samtools view -bh -F4 -F1024 -f16 -s 111.01 $bamdir/$filename.*.bam $roi > ./tmp/$filename.directional.r1.tmp
+        samtools view -bh -F4 -F1024 -F16 $bamdir/$filename.*.bam $roi > ./tmp/$filename.background.r1.tmp
     fi
 done
 
 # Merging for overall background analysis
-samtools merge -@ $threads $sampleId.background.bam ./tmp/*background.*.tmp
-samtools merge -@ $threads $sampleId.directional.bam ./tmp/*directional.*.tmp
-samtools index -@ $threads $sampleId.background.bam
-samtools index -@ $threads $sampleId.directional.bam
+if [[ -n $(ls ./tmp/*.tmp | grep $sampleId) ]]; then
+    samtools merge -@ $threads $sampleId.background.bam ./tmp/$sampleId*.background.*.tmp
+    samtools merge -@ $threads $sampleId.directional.bam ./tmp/$sampleId*.directional.*.tmp
+    samtools index -@ $threads $sampleId.background.bam
+    samtools index -@ $threads $sampleId.directional.bam
 
-echo -e "$(samtools view -c $sampleId.background.bam) $(($(samtools view -c $sampleId.directional.bam)*100))" > $sampleId.readcounts.txt
+    echo -e "$(samtools view -c $sampleId.background.bam) $(($(samtools view -c $sampleId.directional.bam)*100))" > $sampleId.readcounts.txt
+fi

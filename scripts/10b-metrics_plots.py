@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
-## PURPOSE: Group individual metrics_* files into a spreadsheet, and plot heatmaps
-## USAGE:   python 10a-metrics_plots.py
+## PURPOSE: Plot heatmaps from metric_details.tsv
+## USAGE:   python 10b-metrics_plots.py <metrics_file>
 ## OUTPUT:  heatmaps.pdf
 
 ## LIBRARIES
+import sys
 import os
 import pandas as pd
 import numpy as np
@@ -12,6 +13,9 @@ import seaborn as sns
 import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+
+## VARIABLE
+metrics_file = sys.argv[1]
 
 ## SCRIPT
 dim = 15
@@ -21,7 +25,7 @@ columns_order = ['Quality', 'Background', 'Duplication_rate', 'Complexity_at_1Gb
                  'Coverage', 'Reads_per_Mb', 'Mean_GC', 'Percent_WC', 'Read_length']
 
 # Data
-metdf = pd.read_table('metrics_details.tsv')
+metdf = pd.read_table(metrics_file)
 metdf_chiponly = metdf.query("not R.isna()").copy()
 metdf_chiponly[['R', 'C']] = metdf_chiponly[['R', 'C']].astype({'R': int, 'C': int})
 metdf_chiponly['RC'] = metdf_chiponly.apply(lambda row: [row['R'], row['C']], axis=1)
@@ -44,8 +48,8 @@ except IndexError:
 samplemap = metdf_chiponly[['Sample', 'R', 'C']].merge(labels[['Sample', 'index']]).pivot(index="R", columns="C", values="index")
 combined_cmap = colors.ListedColormap(np.vstack((plt.cm.tab20(np.linspace(0, 1, 20)), plt.cm.tab20b(np.linspace(0, 1, 20)), plt.cm.Set1(np.linspace(0, 1, 9)), plt.cm.Dark2(np.linspace(0, 1, 8)))))
 
-allcolumns = list(range(metdf_chiponly['C'].min(), metdf_chiponly['C'].max()))
-allrows = list(range(metdf_chiponly['R'].min(), metdf_chiponly['R'].max()))
+allcolumns = list(range(metdf_chiponly['C'].min(), metdf_chiponly['C'].max()+1))
+allrows = list(range(metdf_chiponly['R'].min(), metdf_chiponly['R'].max()+1))
 samplemap = samplemap.reindex(columns=allcolumns).reindex(allrows)
 
 # Metrics Heatmaps

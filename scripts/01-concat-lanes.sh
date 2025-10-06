@@ -36,7 +36,7 @@ if [[ -z $threads ]]; then
 fi
 
 ## SCRIPT
-for sample in $(ls $dir/*.fastq.gz | sed 's#.*/##g' | cut -f1 -d "_" | sed 's#-r..-c.*##g' | sort -u)
+for sample in $(ls $dir/*.fastq.gz | sed 's#.*/##g' | cut -f1 -d "_" | sed 's#-r[[:digit:]]\+-c.*##g' | sort -u)
 do
     mkdir -p ./input/$sample/
 

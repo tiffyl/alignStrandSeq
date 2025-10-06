@@ -10,6 +10,7 @@ helpFunction()
     echo -e "\t-i path       Input BAM file. *Required*"
     echo -e "\t-p bool       Paired-end reads. *Required*"
     echo -e "\t-m int        Mapping Quality filter. *Required*"
+    echo -e "\t-g str        Reference genome. *Required*"
     echo -e "\t-s bool       Input BAM needs to be sorted. [Default: true]"
     echo -e "\t-t int        Number of threads. [Default: 12]"
     echo -e "\t-h            Help message."
@@ -17,12 +18,13 @@ helpFunction()
     exit 1 # Exit script after printing help
 }
 
-while getopts "i:p:m:s:t:h" opt
+while getopts "i:p:m:g:s:t:h" opt
 do
     case "$opt" in
         i ) bam="$OPTARG" ;;
         p ) paired="$OPTARG" ;;        
         m ) mapq="$OPTARG" ;;
+        g ) genome="$OPTARG" ;;
         s ) sort="$OPTARG" ;;
         t ) threads="$OPTARG" ;;
         h ) helpFunction ;;
@@ -31,7 +33,7 @@ do
 done
 
 # Required
-if [[ -z $bam || -z $paired || -z $mapq ]]; then
+if [[ -z $bam || -z $paired || -z $mapq || -z $genome ]]; then
     echo "ERROR: Missing required parameters."
     helpFunction
 fi
@@ -57,13 +59,20 @@ else
     sorted=$bam
 fi
 
-## TODO IF GENOME IS NOT HUMAN, THEN WE DO NOT FILTER FOR CHROMOSOMES
 if $paired;
 then
-    #Remove unmapped, poor quality, unwanted chromosomes
-    samtools view -F2052 -q $mapq -h $sorted chr{1..22} chrX chrY | grep -v -E '@SQ.*chrUn|@SQ.*random|@SQ.*chrEBV' | samtools sort -@ $threads -n - | 
-        samtools fixmate -@ $threads -O bam - - | samtools sort -@ $threads - | samtools view -bh -f1 -o $libId.trimmed.filtered.bam
+    if [[ $genome == "hg38" || $genome == "chm13" ]]; then
+        #Remove unmapped, poor quality, unwanted chromosomes
+        samtools view -F2052 -q $mapq -h $sorted chr{1..22} chrX chrY | grep -v -E '@SQ.*chrUn|@SQ.*random|@SQ.*chrEBV' | samtools sort -@ $threads -n - | 
+            samtools fixmate -@ $threads -O bam - - | samtools sort -@ $threads - | samtools view -bh -f1 -o $libId.trimmed.filtered.bam
+    else
+        samtools sort -@ $threads -n $sorted | samtools fixmate -@ $threads -O bam - - | samtools sort -@ $threads - | samtools view -bh -f1 -o $libId.trimmed.filtered.bam
+    fi
 else
-    samtools view -F2052 -q $mapq -h $sorted chr{1..22} chrX chrY | grep -v -E '@SQ.*chrUn|@SQ.*random|@SQ.*chrEBV' | 
-        samtools view -bh -o $libId.trimmed.filtered.bam
+    if [[ $genome == "hg38" || $genome == "chm13" ]]; then
+        samtools view -F2052 -q $mapq -h $sorted chr{1..22} chrX chrY | grep -v -E '@SQ.*chrUn|@SQ.*random|@SQ.*chrEBV' | 
+            samtools view -bh -o $libId.trimmed.filtered.bam
+    else
+        samtools sort -@ $threads -n $sorted | samtools fixmate -@ $threads -O bam - - | samtools sort -@ $threads - | samtools view -bh -f1 -o $libId.trimmed.filtered.bam
+    fi
 fi

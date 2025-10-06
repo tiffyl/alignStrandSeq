@@ -82,6 +82,7 @@ include {
     stats_insertsize
     stats_gcbias
     stats_breakpointr
+    stats_chromstates
     stats_ashleys
     stats_uniqreads
     stats_complexity
@@ -149,8 +150,13 @@ workflow {
     }
 
     //Trim
-    trim_adapter(totrimfq_ch)
-    
+    if ( params.unassigned ) {
+        trim_adapter(totrimfq_ch)
+    }
+    else {
+        trim_adapter(totrimfq_ch.filter{ id, files -> !(id =~ /(?i)^Un*/) })
+    }
+
     //Align
     bt2_align(trim_adapter.out.trimmedFastqs)
 
@@ -179,7 +185,7 @@ workflow {
     uniqreads(libraries_filter.out.bamDirs)
 
     //PreSeq
-    preseq(picard_mkdup.out.processedBams.filter{ id -> (id =~ /-r..-c../) })
+    preseq(picard_mkdup.out.processedBams.filter{ id -> (id =~ /-r\d+-c\d+/) })
     preseq_indiv(preseq.out.preseqFiles)
     preseq_group(preseq.out.preseqFiles.map{ id, file1, file2 -> [file1, file2]}.flatten().collect(), libraries_filter.out.poorLibs.collect())
 
@@ -205,7 +211,8 @@ workflow {
     stats_insertsize(picard_collectinsertgc.out.insertmets.collect())
     stats_gcbias(picard_collectinsertgc.out.gcmets.collect())
 
-    stats_breakpointr(breakpointr.out.bprstats.map{ id, file -> file }.flatten().collect(), breakpointr.out.chrstates.collect())
+    stats_breakpointr(breakpointr.out.bprstats.map{ id, file -> file }.flatten().collect())
+    stats_chromstates(breakpointr.out.chrstates.collect())
     stats_ashleys(ashleysqc.out.ashleysQscores.map{ id, file -> file }.flatten().collect())
     stats_uniqreads(uniqreads.out.uniqReads.collect())
     stats_complexity(preseq_indiv.out.complexity.collect())

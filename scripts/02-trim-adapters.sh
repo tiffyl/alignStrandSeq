@@ -46,7 +46,7 @@ if [[ -z $nextera ]]; then
     nextera=false 
 fi
 if [[ -z $threads ]]; then
-    threads=12 
+    threads=4
 fi
 
 ## SCRIPT
