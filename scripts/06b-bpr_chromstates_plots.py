@@ -6,7 +6,7 @@
 
 ## LIBRARIES
 import os
-os.environ['MPLCONFIGDIR']= "/projects/lansdorp/lansdorp_scratch/nfwork/$USER"
+os.environ['MPLCONFIGDIR']= "/projects/lansdorp/lansdorp_scratch/nfwork/"
 
 import sys
 import pandas as pd
@@ -22,7 +22,7 @@ chrOrder = chrstates.columns.tolist()[1:]
 chrstates["Sample"] = chrstates['library'].str.split('-r\d+-c\d+').str[0]
 
 melt_chrstates = chrstates.drop(columns=['library']).melt(id_vars='Sample', var_name='Chromosome', value_name='State')
-count_df = pd.pivot_table(melt_chrstates, values='State', index=['Sample','Chromosome'], columns='State', aggfunc='size')[['wc', 'ww', 'cc', 'Unknown']]
+count_df = pd.pivot_table(melt_chrstates, values='State', index=['Sample','Chromosome'], columns='State', aggfunc='size').reindex(columns=["wc", "ww", "cc", "Unknown"])
 row_sums = count_df.sum(axis=1)
 pct_df = (count_df.div(row_sums, axis=0) * 100).reset_index()
 

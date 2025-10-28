@@ -28,6 +28,9 @@ if ( ref == "hg38" ) {
 } else if ( ref == "MesAur1" ) {
     chr <- paste0("KB", seq(708127,708150), ".1")
     mask <- NULL
+} else if ( ref == "bGalGal1" ) {
+    chr <- paste0("NC_0525", seq(32,72), ".1")
+    mask <- NULL
 }
     
 ## SCRIPT
