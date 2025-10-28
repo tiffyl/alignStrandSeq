@@ -8,7 +8,7 @@ helpFunction()
     echo ""
     echo "USAGE: bash $0 -i <bam directory> -g <genome size>"
     echo -e "\t-i path       Input bam directory. *Required*"
-    echo -e "\t-g path       Genome size. *Required*"
+    echo -e "\t-g path       Reference genome. *Required*"
     echo -e "\t-t int        Number of threads. [Default: 12]"
     echo -e "\t-h            Help message."
 
@@ -19,7 +19,7 @@ while getopts "i:g:t:h" opt
 do
     case "$opt" in
         i ) bamdir="$OPTARG" ;;
-        g ) genomesize="$OPTARG" ;;
+        g ) genome="$OPTARG" ;;
         t ) threads="$OPTARG" ;;
         h ) helpFunction ;;
         ? ) helpFunction ;; # Print helpFunction in case parameter is non-existent
@@ -27,7 +27,7 @@ do
 done
 
 # Required
-if [[ -z $bamdir || -z $genomesize ]]; then
+if [[ -z $bamdir || -z $genome ]]; then
     echo "ERROR: Missing required parameters."
     helpFunction
 fi
@@ -40,5 +40,10 @@ fi
 ## SCRIPT
 sampleId=$(basename $bamdir)
 
-ashleys.py -j $threads features -f $bamdir -w 5000000 2000000 1000000 800000 600000 400000 200000 -o $sampleId.features.tsv
+if [[ $genome == "bGalGal1" ]]; then
+    ashleys.py -j $threads features -f $bamdir -w 5000000 2000000 1000000 800000 600000 400000 200000 -o $sampleId.features.tsv -c "^NC_0525[0-9]+[.]1$"
+else
+    ashleys.py -j $threads features -f $bamdir -w 5000000 2000000 1000000 800000 600000 400000 200000 -o $sampleId.features.tsv
+fi
+
 ashleys.py predict -p $sampleId.features.tsv -o $sampleId.libquality.txt -m /projects/lansdorp/nextflow_pipelines/alignStrandSeq/scripts/files/svc_default.pkl
