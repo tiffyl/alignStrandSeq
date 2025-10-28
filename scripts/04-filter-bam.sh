@@ -73,6 +73,6 @@ else
         samtools view -F2052 -q $mapq -h $sorted chr{1..22} chrX chrY | grep -v -E '@SQ.*chrUn|@SQ.*random|@SQ.*chrEBV' | 
             samtools view -bh -o $libId.trimmed.filtered.bam
     else
-        samtools sort -@ $threads -n $sorted | samtools fixmate -@ $threads -O bam - - | samtools sort -@ $threads - | samtools view -bh -f1 -o $libId.trimmed.filtered.bam
+        samtools sort -@ $threads -n $sorted | samtools fixmate -@ $threads -O bam - - | samtools sort -@ $threads - | samtools view -bh -o $libId.trimmed.filtered.bam
     fi
 fi
