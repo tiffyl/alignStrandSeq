@@ -14,16 +14,23 @@ import numpy as np
 ## VARIABLES
 metrics_file = sys.argv[1]
 uniqreads_file = sys.argv[2]
-genomesize = float(sys.argv[3])
-ashleysthreshold = float(sys.argv[4])
-bgthreshold = float(sys.argv[5])
-wcthreshold = float(sys.argv[6])
+paired = sys.argv[3]
+genomesize = float(sys.argv[4])
+ashleysthreshold = float(sys.argv[5])
+bgthreshold = float(sys.argv[6])
+wcthreshold = float(sys.argv[7])
 
 
 ## SCRIPT
-columns_order = ['Quality', 'Background', 'Duplication_rate', 'Complexity_at_1Gb', 'Median_insert_size', 
-                 'Adapters_at_least_50bp', 'Alignment_rate', 'Initial_reads_aligned', 'Processed_reads_aligned', 
-                 'Coverage', 'Reads_per_Mb', 'Mean_GC', 'Percent_WC', 'Read_length']
+if paired == "true":
+    columns_order = ['Quality', 'Background', 'Duplication_rate', 'Complexity_at_1Gb', 'Median_insert_size', 
+                    'Adapters_at_least_50bp', 'Alignment_rate', 'Initial_reads_aligned', 'Processed_reads_aligned', 
+                    'Coverage', 'Reads_per_Mb', 'Mean_GC', 'Percent_WC', 'Read_length']
+else:
+    columns_order = ['Quality', 'Background', 'Duplication_rate', 'Complexity_at_1Gb', 
+                    'Adapters_at_least_50bp', 'Alignment_rate', 'Initial_reads_aligned', 'Processed_reads_aligned', 
+                    'Coverage', 'Reads_per_Mb', 'Mean_GC', 'Percent_WC', 'Read_length']
+
 libmetadata = ['Library', 'R', 'C', 'Sample']
 
 metdf = pd.read_table(metrics_file, sep="\t")

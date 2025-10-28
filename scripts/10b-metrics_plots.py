@@ -16,13 +16,19 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 ## VARIABLE
 metrics_file = sys.argv[1]
+paired = sys.argv[2]
 
 ## SCRIPT
 dim = 15
 
-columns_order = ['Quality', 'Background', 'Duplication_rate', 'Complexity_at_1Gb', 'Median_insert_size', 
-                 'Adapters_at_least_50bp', 'Alignment_rate', 'Initial_reads_aligned', 'Processed_reads_aligned', 
-                 'Coverage', 'Reads_per_Mb', 'Mean_GC', 'Percent_WC', 'Read_length']
+if paired == "true":
+    columns_order = ['Quality', 'Background', 'Duplication_rate', 'Complexity_at_1Gb', 'Median_insert_size', 
+                    'Adapters_at_least_50bp', 'Alignment_rate', 'Initial_reads_aligned', 'Processed_reads_aligned', 
+                    'Coverage', 'Reads_per_Mb', 'Mean_GC', 'Percent_WC', 'Read_length']
+else:
+    columns_order = ['Quality', 'Background', 'Duplication_rate', 'Complexity_at_1Gb', 
+                    'Adapters_at_least_50bp', 'Alignment_rate', 'Initial_reads_aligned', 'Processed_reads_aligned', 
+                    'Coverage', 'Reads_per_Mb', 'Mean_GC', 'Percent_WC', 'Read_length']
 
 # Data
 metdf = pd.read_table(metrics_file)

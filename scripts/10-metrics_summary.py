@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ## PURPOSE: Group individual metrics_* files into a table
-## USAGE:   python 10-metrics_summary.py 
+## USAGE:   python 10-metrics_summary.py <paired(true/false)
 ## OUTPUT:  metrics.xlsx metrics_details.tsv 
 
 ## LIBRARIES
@@ -12,11 +12,20 @@ import glob
 import pandas as pd
 import numpy as np
 
+## VARIBLES
+paired = sys.argv[1]
+
 ## SCRIPT
 # Merge all metric files
-columns_order = ['Quality', 'Background', 'Duplication_rate', 'Complexity_at_1Gb', 'Median_insert_size', 
-                 'Adapters_at_least_50bp', 'Alignment_rate', 'Initial_reads_aligned', 'Processed_reads_aligned', 
-                 'Coverage', 'Reads_per_Mb', 'Mean_GC', 'Percent_WC', 'Read_length']
+if paired == "true":
+    columns_order = ['Quality', 'Background', 'Duplication_rate', 'Complexity_at_1Gb', 'Median_insert_size', 
+                    'Adapters_at_least_50bp', 'Alignment_rate', 'Initial_reads_aligned', 'Processed_reads_aligned', 
+                    'Coverage', 'Reads_per_Mb', 'Mean_GC', 'Percent_WC', 'Read_length']
+else:
+    columns_order = ['Quality', 'Background', 'Duplication_rate', 'Complexity_at_1Gb', 
+                    'Adapters_at_least_50bp', 'Alignment_rate', 'Initial_reads_aligned', 'Processed_reads_aligned', 
+                    'Coverage', 'Reads_per_Mb', 'Mean_GC', 'Percent_WC', 'Read_length']
+
 libmetadata = ['Library', 'R', 'C', 'Sample']
 
 
