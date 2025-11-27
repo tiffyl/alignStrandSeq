@@ -1,0 +1,10 @@
+Bootstrap: docker
+From: broadinstitute/picard:3.1.0
+
+
+%help
+Singularity container with picard and R.
+
+%post
+    apt update
+    DEBIAN_FRONTEND="noninteractive" apt-get install -y r-base

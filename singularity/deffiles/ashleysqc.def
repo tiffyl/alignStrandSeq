@@ -1,0 +1,27 @@
+Bootstrap: docker
+From: continuumio/miniconda3:latest
+
+
+%help
+Singularity container with conda and ASHLEYS (https://github.com/friendsofstrandseq/ashleys-qc).
+
+%environment
+    source /opt/etc/bashrc
+
+%post
+    apt-get update
+    
+    mkdir -p /opt/etc
+    cp ~/.bashrc /opt/etc/bashrc
+    echo -e "#! /bin/bash\n\n# script to activate the conda environment" > /opt/etc/bashrc
+    echo -e "\nconda activate ashleys" >> /opt/etc/bashrc
+
+    conda install -y anaconda::git
+
+    git clone https://github.com/friendsofstrandseq/ashleys-qc.git ashleys-qc
+    cd ashleys-qc
+
+    conda env create -f environment/ashleys_env.yml
+    conda activate ashleys
+
+    python setup.py install
