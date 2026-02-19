@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+
+## PURPOSE: Export SCE positions in excel matrix.
+## USAGE:   python 06c-bpr-sce.py <breakpointSummary>
+## OUTPUT:  sce_breakpoints.xlsx
+
 import pandas as pd
 
 bpr_table = pd.read_table(sys.argv[1], sep=" ").query('genoT != "ww-cc" & genoT != "cc-ww"')
