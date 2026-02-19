@@ -154,7 +154,7 @@ workflow {
         trim_adapter(totrimfq_ch)
     }
     else {
-        trim_adapter(totrimfq_ch.filter{ id, files -> !(id =~ /(?i)^Un*/) })
+        trim_adapter(totrimfq_ch.filter{ id, files -> !(id =~ /(?i)^Un/) })
     }
 
     //Align
@@ -191,7 +191,7 @@ workflow {
 
     //InvertypeR
     if ( params.b2fdir ) {
-        snpcalling(libraries_filter.out.bamDirs.filter{ id, dir -> !(id =~ /(?i)^un*/) })
+        snpcalling(libraries_filter.out.bamDirs.filter{ id, dir -> !(id =~ /(?i)^un/) })
         inv_ch = libraries_filter.out.bamDirs.concat(snpcalling.out.vcfs).groupTuple(by:0)
         invertyper(inv_ch)
         ideogram(invertyper.out.inversions)
@@ -213,14 +213,18 @@ workflow {
 
     stats_breakpointr(breakpointr.out.bprstats.map{ id, file -> file }.flatten().collect())
     stats_chromstates(breakpointr.out.chrstates.collect())
+    stats_sce(breakpointr.out.breakpoints.collect(), libraries_filter.out.poorLibs.collect())
+    
     stats_ashleys(ashleysqc.out.ashleysQscores.map{ id, file -> file }.flatten().collect())
     stats_uniqreads(uniqreads.out.uniqReads.collect())
     stats_complexity(preseq_indiv.out.complexity.collect())
 
     //BACKGROUND
-    stats_background(libraries_filter.out.bamDirs.filter{ id, dir -> !(id =~ /(?i)^un*/) }.map{ id, dir -> dir }.collect(), 
-                    breakpointr.out.wwchr1.filter{ file -> !(file.baseName =~ /(?i)^un*/) }.collect())
-    plots_background(stats_background.out.bgFiles)
+    if ( ! params.ignorebg ) {
+        stats_background(libraries_filter.out.bamDirs.filter{ id, dir -> !(id =~ /(?i)^un/) }.map{ id, dir -> dir }.collect(), 
+                    breakpointr.out.wwchr1.filter{ file -> !(file.baseName =~ /(?i)^un/) }.collect())
+        plots_background(stats_background.out.bgFiles)
+    }
 
     //SUMMARY
     metrics_ch = stats_adapter.out.metrics.concat(

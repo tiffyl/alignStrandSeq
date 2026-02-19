@@ -134,11 +134,13 @@ process picard_mkdup {
     output:
         tuple val(sampleId), path("${libId}.processed.*"), emit: processedBams
         path("${libId}.mdup.txt"), emit: mkdupLogs
+        path("${libId}.duplicates.txt")
 
     script:
     sampleId = libId.split(/-r\d+-c\d+/)[0]
     """
     bash ${projectDir}/scripts/05-mark-duplicates.sh -i ${bam}
+    bash ${projectDir}/scripts/05a-duplicatespositions.sh -i ${libId}.processed.bam
     """
 }
 
@@ -156,6 +158,7 @@ process breakpointr {
         tuple val(sampleId), path("${sampleId}*.bprstats.txt"), emit: bprstats
         path("${sampleId}*.chrstates.txt"), emit: chrstates
         path("${sampleId}.wwchr1.list"), emit: wwchr1
+        path("${sampleId}.breakPointSummary.txt"), emit: breakpoints
         path("${sampleId}.breaksPlot.pdf")
     
     script:
@@ -167,6 +170,7 @@ process breakpointr {
     Rscript ${projectDir}/scripts/06a-stats-breakpointr.R ${sampleId}_BPR_output
 
     mv ${sampleId}_BPR_output/plots/breaksPlot.pdf ${sampleId}.breaksPlot.pdf
+    tail +2 ${sampleId}_BPR_output/breakpoints/breakPointSummary.txt > ${sampleId}.breakPointSummary.txt
     """
 }
 
@@ -241,7 +245,7 @@ process ashleysqc {
     mkdir -p ./${sampleId}
     mv ${sampleId}*.processed.bam* ./${sampleId}
 
-    bash ${projectDir}/scripts/08-ashleys.sh -i ./${sampleId} -g ${params.genomesize} -t ${params.threads} 
+    bash ${projectDir}/scripts/08-ashleys.sh -i ./${sampleId} -g ${params.ref} -t ${params.threads} 
     """
 }
 
@@ -419,13 +423,16 @@ process picard_collectinsertgc {
         tuple val(sampleId), path(bam)
     
     output:
-        path('*.colinsert.txt'), emit: insertmets
-        path('*.insert_size.pdf')
+        path('*.colinsert.txt'), optional:true, emit: insertmets
+        path('*.insert_size.pdf'), optional:true 
         path('*.gc_bias.txt'), emit: gcmets
         path("*.gc_bias.pdf")
     
     """
-    bash ${projectDir}/scripts/04b-stats-insertsize.sh -i ${bam[0]} 
+    if ${params.paired}; then 
+        bash ${projectDir}/scripts/04b-stats-insertsize.sh -i ${bam[0]}
+    fi
+
     bash ${projectDir}/scripts/04c-stats-gcbias.sh -i ${bam[0]} -g ${params.ref}
     """
 }
@@ -601,6 +608,29 @@ process stats_chromstates {
     """
 }
 
+process stats_sce {
+    container "${projectDir}/singularity/py310_viz.sif"
+    
+    publishDir "${params.pipedir}/analysis/", mode: 'copy', pattern: "sce_breakpoints.xlsx"
+
+    input:
+        val(breakpointsList)
+        val(poorLibsList)
+    
+    output:
+        path("sce_breakpoints.xlsx")
+
+    script:
+    """
+    printf "seqnames start end CI.start CI.end genoT filenames\n" > lib_breakpoints.txt
+    cat ${breakpointsList.join(" ")} >> lib_breakpoints.txt
+    cat ${poorLibsList.join(" ")} > poorlibs.txt
+    grep -v -f poorlibs.txt lib_breakpoints.txt > goodlibs_breakpoints.txt
+
+    python ${projectDir}/scripts/06c-bpr_sce.py goodlibs_breakpoints.txt
+    """
+}
+
 process stats_ashleys {
     publishDir "${params.pipedir}/analysis/", mode: 'copy', pattern: "libquality.txt"
 
@@ -615,7 +645,7 @@ process stats_ashleys {
     """
     printf "Library\tQuality\n" > metrics_libquality.txt
     cat ${ashleysList.join(" ")} | cut -f1,3 | grep -v "^cell" | sed 's/.processed.bam//g' >> metrics_libquality.txt
-
+w
     cat ${ashleysList.join(" ")} | grep -v "^cell" | sort > libquality.txt
     """
 }
@@ -717,8 +747,8 @@ process metrics_summary {
 
     script:
     """
-    python ${projectDir}/scripts/10-metrics_summary.py 
-    python ${projectDir}/scripts/10a-metrics_excel.py metrics_details.tsv sample_uniqreads.tsv ${params.genomesize} ${params.ashleysthreshold} ${params.bgthreshold} ${params.wcthreshold}
-    python ${projectDir}/scripts/10b-metrics_plots.py metrics_details.tsv
+    python ${projectDir}/scripts/10-metrics_summary.py ${params.paired}
+    python ${projectDir}/scripts/10a-metrics_excel.py metrics_details.tsv sample_uniqreads.tsv ${params.paired} ${params.genomesize} ${params.ashleysthreshold} ${params.bgthreshold} ${params.wcthreshold}
+    python ${projectDir}/scripts/10b-metrics_plots.py metrics_details.tsv ${params.paired}
     """
 }
